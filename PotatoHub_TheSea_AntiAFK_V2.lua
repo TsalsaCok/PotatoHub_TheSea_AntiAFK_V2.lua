@@ -440,7 +440,7 @@ section("Farming")
 tg("Chest", "Auto Chests", "opens every unlooted chest in range")
 
 section("Movement")
-tg("Fly", "Fly  [F]", "WASD + Space up, Ctrl down, Shift double speed")
+tg("Fly", "Fly  [C]", "WASD + Space up, Ctrl down, Shift double speed")
 btn("Fly Speed  -", function(b)
     FLY_SPEED = math.max(20, FLY_SPEED - 20)
     b.Text = "Fly Speed  -   (" .. FLY_SPEED .. ")"
@@ -502,7 +502,7 @@ do
     end)
 end
 
--- ---------- fly: F key + an on-screen button for touch ----------
+-- ---------- fly: C key + an on-screen button for touch ----------
 do
     local fg = Instance.new("Frame")
     fg.Size = UDim2.fromOffset(88, 88)
@@ -534,7 +534,7 @@ do
 
     flyBtn.MouseButton1Click:Connect(toggleFly)
     bind(UIS.InputBegan, function(i, gp)
-        if not gp and i.KeyCode == Enum.KeyCode.F then toggleFly() end
+        if not gp and i.KeyCode == Enum.KeyCode.C then toggleFly() end
     end)
     bind(RunS.Heartbeat, function()
         if not alive then return end
@@ -580,4 +580,4 @@ do
     baseCF = hp and hp.CFrame or nil
 end
 getgenv().__POTATO_SEA = { S=S, u=u, net=network, stats=stats, base=returnToBase }
-warn("[POTATO SEA] loaded. F toggles fly. Unload: End.")
+warn("[POTATO SEA] loaded. C toggles fly. Unload: End.")
