@@ -1,24 +1,3 @@
---[[==============================================================
-    POTATO - THE SEA   (place 139802517550914)
-    Trimmed build: chests, fly, base teleport, ESP. Nothing else.
-
-    NETWORK
-      Nothing here is a plain remote. Everything goes through
-      ReplicatedStorage.Network, which stamps a token from
-      workspace.ServerAge and encodes args with DataCodec. Requiring the
-      module fresh hands back an unbound copy with no .RE, so the live
-      table is pulled out of getgc - it is the only one carrying both
-      FireServer and a bound .RE.
-
-    VERIFIED
-      OpenChest  InvokeServer("OpenChest", <chest model>)
-                 -> true on the first open, false once already looted.
-                 Range checked server side, so we warp to it first.
-      Item names The loot models are named by spawn id ("1786886736");
-                 the readable name lives in an Item attribute.
-
-    Q toggles fly. Unload: End.
-================================================================]]--
 if getgenv().__POTATO_SEA then pcall(getgenv().__POTATO_SEA.u) end
 
 local Players   = game:GetService("Players")
@@ -383,118 +362,6 @@ task.spawn(function()
     end
 end)
 
--- ================= ANTI AFK V2 =================
-local VirtualUser = game:GetService("VirtualUser")
-
-local antiAFK = {
-    enabled = false,
-    lastAction = 0,
-    lastIdle = 0,
-    actions = 0,
-    failures = 0,
-    idleEvents = 0,
-    startedAt = 0,
-}
-
--- Fallback interval. The Idled event remains the primary trigger.
-local ANTI_AFK_INTERVAL = 90
-local ANTI_AFK_CHECK = 5
-
-local function antiAFKDoAction(reason)
-    if not alive or not S.AntiAFK then
-        return false
-    end
-
-    local now = os.clock()
-
-    -- Prevent duplicate actions from the Idled event and fallback timer.
-    if now - antiAFK.lastAction < 10 then
-        return false
-    end
-
-    local ok = pcall(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new(0, 0))
-    end)
-
-    if ok then
-        antiAFK.lastAction = now
-        antiAFK.actions += 1
-        antiAFK.failures = 0
-
-        say(
-            "Anti AFK active | action #%d | %s",
-            antiAFK.actions,
-            tostring(reason or "timer")
-        )
-
-        return true
-    else
-        antiAFK.failures += 1
-
-        say(
-            "Anti AFK action failed (%d)",
-            antiAFK.failures
-        )
-
-        return false
-    end
-end
-
-local function antiAFKEnable()
-    antiAFK.enabled = true
-    antiAFK.startedAt = os.clock()
-    antiAFK.lastAction = 0
-    antiAFK.lastIdle = 0
-    antiAFK.actions = 0
-    antiAFK.failures = 0
-    antiAFK.idleEvents = 0
-
-    say("Anti AFK V2 enabled")
-end
-
-local function antiAFKDisable()
-    antiAFK.enabled = false
-    say("Anti AFK disabled")
-end
-
--- Primary trigger: Roblox's idle event.
-bind(LP.Idled, function(idleTime)
-    if not alive or not S.AntiAFK then
-        return
-    end
-
-    antiAFK.idleEvents += 1
-    antiAFK.lastIdle = os.clock()
-
-    antiAFKDoAction(
-        string.format("idle %.0fs", tonumber(idleTime) or 0)
-    )
-end)
-
--- Fallback: do not rely exclusively on Player.Idled.
-task.spawn(function()
-    while alive do
-        if S.AntiAFK then
-            local now = os.clock()
-
-            if now - antiAFK.lastAction >= ANTI_AFK_INTERVAL then
-                antiAFKDoAction("fallback timer")
-            end
-        end
-
-        task.wait(ANTI_AFK_CHECK)
-    end
-end)
-
--- Keep the internal status synchronized with the GUI toggle.
-task.spawn(function()
-    while alive do
-        antiAFK.enabled = S.AntiAFK
-        task.wait(1)
-    end
-end)
-
 -- ================= GUI =================
 local hui = (typeof(gethui)=="function") and gethui() or game:GetService("CoreGui")
 local sg = Instance.new("ScreenGui"); sg.ResetOnSpawn=false; sg.IgnoreGuiInset=true; sg.Parent=hui
@@ -573,7 +440,7 @@ section("Farming")
 tg("Chest", "Auto Chests", "opens every unlooted chest in range")
 
 section("Movement")
-tg("Fly", "Fly  [Q]", "WASD + Space up, Ctrl down, Shift double speed")
+tg("Fly", "Fly  [F]", "WASD + Space up, Ctrl down, Shift double speed")
 btn("Fly Speed  -", function(b)
     FLY_SPEED = math.max(20, FLY_SPEED - 20)
     b.Text = "Fly Speed  -   (" .. FLY_SPEED .. ")"
@@ -590,8 +457,6 @@ end)
 section("Visuals")
 tg("ESP", "Item ESP", "loot blue, chests gold, creatures red + distance")
 
-section("Misc")
-tg("AntiAFK", "Anti AFK V2", "idle protection + automatic fallback")
 btn("Reset Chest List", function(b)
     chestDone = {}
     say("chest list cleared")
@@ -637,7 +502,7 @@ do
     end)
 end
 
--- ---------- fly: Q key + an on-screen button for touch ----------
+-- ---------- fly: F key + an on-screen button for touch ----------
 do
     local fg = Instance.new("Frame")
     fg.Size = UDim2.fromOffset(88, 88)
@@ -669,7 +534,7 @@ do
 
     flyBtn.MouseButton1Click:Connect(toggleFly)
     bind(UIS.InputBegan, function(i, gp)
-        if not gp and i.KeyCode == Enum.KeyCode.Q then toggleFly() end
+        if not gp and i.KeyCode == Enum.KeyCode.F then toggleFly() end
     end)
     bind(RunS.Heartbeat, function()
         if not alive then return end
@@ -683,29 +548,15 @@ bind(RunS.Heartbeat, function()
     if not alive or os.clock() < nextStat then return end
     nextStat = os.clock() + 0.2
     local h = hum()
-    local afkStatus = "OFF"
 
-    if S.AntiAFK then
-        local elapsed = antiAFK.lastAction > 0
-            and (os.clock() - antiAFK.lastAction)
-            or 0
-
-        afkStatus = string.format(
-            "ON | actions %d | idle %d | %.0fs ago",
-            antiAFK.actions,
-            antiAFK.idleEvents,
-            elapsed
-        )
-    end
 
     stat.Text = string.format(
-        "  %s\n  Food %d   O2 %d   HP %s\n  chests opened %d\n  Anti AFK: %s\n  %s",
+        "  %s\n  Food %d   O2 %d   HP %s\n  chests opened %d\n  %s",
         mode,
         math.floor(tonumber(att("Food")) or 0),
         math.floor(tonumber(att("O2")) or 0),
         h and tostring(math.floor(h.Health)) or "-",
         stats.chests,
-        afkStatus,
         logLine)
 end)
 
@@ -729,4 +580,4 @@ do
     baseCF = hp and hp.CFrame or nil
 end
 getgenv().__POTATO_SEA = { S=S, u=u, net=network, stats=stats, base=returnToBase }
-warn("[POTATO SEA] loaded. Q toggles fly. Unload: End.")
+warn("[POTATO SEA] loaded. F toggles fly. Unload: End.")
